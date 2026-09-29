@@ -5,6 +5,8 @@ import { Rating } from '../models/Rating.js';
 export async function getAllRatings(req, res, next) {
   try {
     // TODO
+    const ratings = await Rating.find();
+    res.json(ratings);  
   } catch (err) { next(err); }
 }
 
@@ -13,6 +15,8 @@ export async function getAllRatings(req, res, next) {
 export async function getRating(req, res, next) {
   try {
     // TODO
+    const rating = await Rating.findById(req.params.id);  
+    res.json(rating); 
   } catch (err) { next(err); }
 }
 
@@ -21,6 +25,9 @@ export async function getRating(req, res, next) {
 export async function createRating(req, res, next) {
   try {
     // TODO
+    const rating = new Rating(req.body);
+    await rating.save();
+    res.status(201).json(rating);
   } catch (err) { next(err); }
 }
 
@@ -29,5 +36,11 @@ export async function createRating(req, res, next) {
 export async function getRatingSummary(req, res, next) {
   try {
     // TODO
+    const bookCode = req.query.bookCode;
+    const summary = await Rating.aggregate([
+      { $match: { bookCode } },
+      { $group: { _id: '$bookCode', averageRating: { $avg: '$rating' }, totalRatings: { $sum: 1 } } }
+    ]);
+    res.json(summary);
   } catch (err) { next(err); }
 }
