@@ -5,10 +5,10 @@ import mongoose from 'mongoose';
 const ratingSchema = new mongoose.Schema(
   {
     // TODO
-    bookcode: { type: String, required: true ,},
+    bookCode: { type: String, required: true ,},
     rating: { type: Number, required: true, min: 1, max: 5 },
     note : {type: String, required: false},
-    ratedby : { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false }
+    ratedBy : { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false }
   },
   { timestamps: true }
 );
