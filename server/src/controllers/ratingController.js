@@ -1,5 +1,5 @@
 import { Rating } from '../models/Rating.js';
-
+import Joi from 'joi';
 // GET /api/ratings
 // TODO: implement per README.md section 2.
 
@@ -21,11 +21,18 @@ export async function getRating(req, res, next) {
   try {
     const rating = await Rating.findById(req.params.id).lean();
     if (!rating) {
-      return res.status(404).json({ error: 'Rating not found' });
+      return res.status(404).json({ message: 'Rating not found' });
     }
-    res.json(publicRating(rating));
+    res.json({ rating: publicRating(rating) });
   } catch (err) { next(err); }
 }
+
+const createSchema = Joi.object({
+  bookCode: Joi.string().required(),
+  rating: Joi.number().integer().min(1).max(5).required(),
+  note: Joi.string().optional(),
+  ratedBy: Joi.string().optional()
+});
 
 // POST /api/ratings
 // TODO: implement per README.md section 2.

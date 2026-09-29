@@ -10,7 +10,7 @@ const ratingSchema = new mongoose.Schema(
     ratedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
     },
   },
   { timestamps: true },
