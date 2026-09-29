@@ -60,11 +60,11 @@ export const getRating = async (req, res, next) => {
 export const getRatingSummary = async (req, res, next) => {
   try {
     const { bookCode } = req.query;
- 
+
     if (!bookCode || typeof bookCode !== 'string') {
       return res.status(400).json({ message: 'bookCode is required' });
     }
- 
+
     const [summary] = await Rating.aggregate([
       { $match: { bookCode } },
       {
@@ -75,7 +75,7 @@ export const getRatingSummary = async (req, res, next) => {
         },
       },
     ]);
- 
+
     return res.status(200).json({
       bookCode,
       averageRating: summary ? summary.averageRating : 0,
