@@ -5,6 +5,8 @@ import { Rating } from '../models/Rating.js';
 export async function getAllRatings(req, res, next) {
   try {
     // TODO
+    const ratings = await Rating.find();
+    return res.status(200).json({ ratings });
   } catch (err) { next(err); }
 }
 
@@ -13,6 +15,14 @@ export async function getAllRatings(req, res, next) {
 export async function getRating(req, res, next) {
   try {
     // TODO
+    const { id } = req.params;
+    const rating = await Rating.findById(id);
+    
+    if (!rating) {
+      return res.status(404).json({ message: 'Rating not found' });
+    }
+    
+    return res.status(200).json({ rating });
   } catch (err) { next(err); }
 }
 
@@ -21,6 +31,8 @@ export async function getRating(req, res, next) {
 export async function createRating(req, res, next) {
   try {
     // TODO
+    const newRating = await Rating.create(req.body);
+    return res.status(201).json({ rating: newRating });
   } catch (err) { next(err); }
 }
 
@@ -29,5 +41,38 @@ export async function createRating(req, res, next) {
 export async function getRatingSummary(req, res, next) {
   try {
     // TODO
+    const { bookCode } = req.query;
+
+    if (!bookCode) {
+      return res.status(400).json({ message: 'bookCode is required' });
+    }
+
+    const result = await Rating.aggregate([
+      { 
+        $match: { bookCode: bookCode } 
+      },
+      {
+        $group: {
+          _id: '$bookCode',
+          averageRating: { $avg: '$rating' },
+          ratingCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    if (result.length === 0) {
+      return res.status(200).json({
+        bookCode,
+        averageRating: 0,
+        ratingCount: 0
+      });
+    }
+
+    const { averageRating, ratingCount } = result[0];
+    return res.status(200).json({
+      bookCode,
+      averageRating,
+      ratingCount
+    });
   } catch (err) { next(err); }
 }
