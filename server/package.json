@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-    "grade": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --verbose"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
+    "grade": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --verbose"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
