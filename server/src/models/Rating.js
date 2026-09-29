@@ -1,14 +1,21 @@
-import mongoose from 'mongoose';
-
-// TODO: define the Rating schema per README.md section 1.
+const mongoose = require('mongoose');
 
 const ratingSchema = new mongoose.Schema(
   {
-    // TODO
+    bookCode: { type: String, required: true },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    note: { type: String },
+    ratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
 );
 
-// TODO: add the compound uniqueness constraint described in README.md section 1.
+ratingSchema.index(
+  { bookCode: 1, ratedBy: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { ratedBy: { $exists: true } },
+  }
+);
 
-export const Rating = mongoose.model('Rating', ratingSchema);
+module.exports = mongoose.model('Rating', ratingSchema);
