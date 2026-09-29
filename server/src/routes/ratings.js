@@ -8,6 +8,13 @@ import {
 
 const router = Router();
 
-// TODO: wire up the three routes in README.md section 2 and the summary route in section 3.
+// Summary route must be defined before /:id[cite: 1]
+router.route('/summary').get(getRatingSummary);
+
+router.route('/')
+  .get(getAllRatings)
+  .post(createRating);
+
+router.route('/:id').get(getRating);
 
 export default router;
