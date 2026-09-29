@@ -14,6 +14,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 // Not found
 app.use((req, res) => {
