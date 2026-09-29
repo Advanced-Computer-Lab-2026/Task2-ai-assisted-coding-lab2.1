@@ -24,6 +24,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          # Students submit from forks. This job holds no secrets (the Google key
+          # lives only in record-grade, which never runs student code), its token
+          # is read-only, and tests/package files are replaced from main below.
+          allow-unsafe-pr-checkout: true
       # Grading files always come from this repository's main branch, so edits
       # to tests or dependencies in a PR do not affect the grade.
       - name: Use grading files from main
