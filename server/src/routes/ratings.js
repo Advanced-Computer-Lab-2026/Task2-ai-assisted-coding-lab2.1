@@ -8,6 +8,11 @@ import {
 
 const router = Router();
 
-// TODO: wire up the three routes in README.md section 2 and the summary route in section 3.
+router.route('/').post(createRating).get(getAllRatings);
+
+// Must be defined before /:id so Express doesn't match 'summary' as an id parameter
+router.get('/summary', getRatingSummary);
+
+router.route('/:id').get(getRating);
 
 export default router;
