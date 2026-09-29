@@ -4,11 +4,15 @@ import mongoose from 'mongoose';
 
 const ratingSchema = new mongoose.Schema(
   {
-    // TODO
+    bookCode: { type: String, required: true },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    note: { type: String },
+    ratedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   { timestamps: true }
 );
 
 // TODO: add the compound uniqueness constraint described in README.md section 1.
-
+ratingSchema.index({ bookCode: 1, ratedBy: 1 }, { unique: true });
+//the 1 is to sort it ascendingly
 export const Rating = mongoose.model('Rating', ratingSchema);
