@@ -4,7 +4,7 @@ import { Rating } from '../models/Rating.js';
 // TODO: implement per README.md section 2.
 export async function getAllRatings(req, res, next) {
   try {
-    bookId
+    bookId: Joi.int().required()
   } catch (err) { next(err); }
 }
 
