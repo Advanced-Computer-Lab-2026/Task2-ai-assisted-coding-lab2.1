@@ -4,7 +4,10 @@ import mongoose from 'mongoose';
 
 const ratingSchema = new mongoose.Schema(
   {
-    // TODO
+    "bookCode" : {type : String,required: true , unique:true},
+    "rating" : {type:number , required : true},
+    "note" : {type:String,required : false},
+    "rateBy" : {type:String,required:false,unique:true}
   },
   { timestamps: true }
 );
