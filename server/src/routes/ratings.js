@@ -1,13 +1,15 @@
-import { Router } from 'express';
-import {
+const express = require('express');
+const router = express.Router();
+const {
+  createRating,
   getAllRatings,
   getRating,
-  createRating,
-  getRatingSummary
-} from '../controllers/ratingController.js';
+  getRatingSummary,
+} = require('../controllers/ratingController');
 
-const router = Router();
+router.post('/', createRating);
+router.get('/', getAllRatings);
+router.get('/summary', getRatingSummary); // must stay above '/:id'
+router.get('/:id', getRating);
 
-// TODO: wire up the three routes in README.md section 2 and the summary route in section 3.
-
-export default router;
+module.exports = router;
