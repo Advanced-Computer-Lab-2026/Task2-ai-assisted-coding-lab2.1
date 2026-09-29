@@ -4,7 +4,8 @@ import { Rating } from '../models/Rating.js';
 // TODO: implement per README.md section 2.
 export async function getAllRatings(req, res, next) {
   try {
-    // TODO
+    const ratings = await Rating.find().populate('ratedBy');
+    res.status(200).json({ ratings });
   } catch (err) { next(err); }
 }
 
@@ -12,7 +13,14 @@ export async function getAllRatings(req, res, next) {
 // TODO: implement per README.md section 2.
 export async function getRating(req, res, next) {
   try {
-    // TODO
+    const { id } = req.params;
+    const rating = await Rating.findById(id).populate('ratedBy');
+
+    if (!rating) {
+      return res.status(404).json({ message: 'Rating not found' });
+    }
+
+    res.status(200).json({ rating });
   } catch (err) { next(err); }
 }
 
@@ -20,7 +28,26 @@ export async function getRating(req, res, next) {
 // TODO: implement per README.md section 2.
 export async function createRating(req, res, next) {
   try {
-    // TODO
+    const { bookCode, rating, note, ratedBy } = req.body;
+
+    // Validation
+    if (!bookCode || rating === undefined) {
+      return res.status(400).json({ message: 'bookCode and rating are required' });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'rating must be between 1 and 5' });
+    }
+
+    const newRating = new Rating({
+      bookCode,
+      rating,
+      note: note || undefined,
+      ratedBy: ratedBy || undefined,
+    });
+
+    const savedRating = await newRating.save();
+    res.status(201).json({ rating: savedRating });
   } catch (err) { next(err); }
 }
 
@@ -28,6 +55,36 @@ export async function createRating(req, res, next) {
 // TODO: implement per README.md section 3.
 export async function getRatingSummary(req, res, next) {
   try {
-    // TODO
+    const { bookCode } = req.query;
+
+    if (!bookCode) {
+      return res.status(400).json({ message: 'bookCode is required' });
+    }
+
+    const summary = await Rating.aggregate([
+      { $match: { bookCode } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: '$rating' },
+          ratingCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    if (summary.length === 0) {
+      return res.status(200).json({
+        bookCode,
+        averageRating: 0,
+        ratingCount: 0,
+      });
+    }
+
+    const { averageRating, ratingCount } = summary[0];
+    res.status(200).json({
+      bookCode,
+      averageRating,
+      ratingCount,
+    });
   } catch (err) { next(err); }
 }
