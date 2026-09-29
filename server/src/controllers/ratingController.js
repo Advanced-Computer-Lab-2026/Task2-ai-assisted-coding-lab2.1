@@ -1,33 +1,65 @@
-import { Rating } from '../models/Rating.js';
+import { Rating } from "../models/Rating.js";
+
+// POST /api/ratings
+export async function createRating(req, res, next) {
+  try {
+    const { bookCode, rating, note, ratedBy } = req.body;
+    const newRating = await Rating.create({ bookCode, rating, note, ratedBy });
+    res.status(201).json({ rating: newRating });
+  } catch (err) {
+    if (err.name === "ValidationError" || err.code === 11000) {
+      return res.status(400).json({ message: err.message });
+    }
+    next(err);
+  }
+}
 
 // GET /api/ratings
-// TODO: implement per README.md section 2.
 export async function getAllRatings(req, res, next) {
   try {
-    // TODO
-  } catch (err) { next(err); }
+    const ratings = await Rating.find();
+    res.json({ ratings });
+  } catch (err) {
+    next(err);
+  }
 }
 
 // GET /api/ratings/:id
-// TODO: implement per README.md section 2.
 export async function getRating(req, res, next) {
   try {
-    // TODO
-  } catch (err) { next(err); }
-}
-
-// POST /api/ratings
-// TODO: implement per README.md section 2.
-export async function createRating(req, res, next) {
-  try {
-    // TODO
-  } catch (err) { next(err); }
+    const rating = await Rating.findById(req.params.id);
+    if (!rating) return res.status(404).json({ message: "Rating not found" });
+    res.json({ rating });
+  } catch (err) {
+    next(err);
+  }
 }
 
 // GET /api/ratings/summary?bookCode=BK101
-// TODO: implement per README.md section 3.
 export async function getRatingSummary(req, res, next) {
   try {
-    // TODO
-  } catch (err) { next(err); }
+    const { bookCode } = req.query;
+    if (!bookCode) {
+      return res.status(400).json({ message: "bookCode is required" });
+    }
+
+    const [summary] = await Rating.aggregate([
+      { $match: { bookCode } },
+      {
+        $group: {
+          _id: "$bookCode",
+          averageRating: { $avg: "$rating" },
+          ratingCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.json({
+      bookCode,
+      averageRating: summary ? summary.averageRating : 0,
+      ratingCount: summary ? summary.ratingCount : 0,
+    });
+  } catch (err) {
+    next(err);
+  }
 }
