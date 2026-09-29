@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test": "jest --runInBand",
     "grade": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --verbose"
   },
   "dependencies": {
