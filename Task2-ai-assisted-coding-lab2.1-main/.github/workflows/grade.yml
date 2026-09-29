@@ -1,0 +1,172 @@
+name: Grade
+on:
+  pull_request_target:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  functional-grade:
+    runs-on: ubuntu-latest
+    outputs:
+      grade: ${{ steps.grade.outputs.grade }}
+      breakdown: ${{ steps.grade.outputs.breakdown }}
+    env:
+      MONGO_URI: "mongodb://tasks:pass1234@ac-j3acrgb-shard-00-00.lueesfz.mongodb.net:27017,ac-j3acrgb-shard-00-01.lueesfz.mongodb.net:27017,ac-j3acrgb-shard-00-02.lueesfz.mongodb.net:27017/?ssl=true&replicaSet=atlas-6to6iy-shard-0&authSource=admin&appName=Cluster0"
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      # Student source code from the PR head (or main on manual runs).
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          # Students submit from forks. This job holds no secrets (the Google key
+          # lives only in record-grade, which never runs student code), its token
+          # is read-only, and tests/package files are replaced from main below.
+          allow-unsafe-pr-checkout: true
+      # Grading files always come from this repository's main branch, so edits
+      # to tests or dependencies in a PR do not affect the grade.
+      - name: Use grading files from main
+        working-directory: .
+        run: |
+          git fetch --no-tags --depth=1 "https://github.com/${{ github.repository }}.git" main
+          git checkout FETCH_HEAD -- server/tests server/package.json server/package-lock.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      # pipefail: without it, tee would hide a failing test run and the check would pass.
+      - run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/grade.log"
+      # Reads the result after the tests, even when they fail. Student code runs
+      # only in the step above and cannot write this step's outputs.
+      - name: Read functional grade
+        id: grade
+        if: always()
+        run: |
+          grade="$(grep -oE 'Functional grade: [0-9]+/[0-9]+' "$RUNNER_TEMP/grade.log" | tail -n1 | grep -oE '[0-9]+/[0-9]+' || true)"
+          breakdown="$(grep -oE 'GRADE_BREAKDOWN \{[^}]*\}' "$RUNNER_TEMP/grade.log" | tail -n1 | sed 's/^GRADE_BREAKDOWN //' || true)"
+          echo "grade=${grade:-error}" >> "$GITHUB_OUTPUT"
+          echo "breakdown=${breakdown:-none}" >> "$GITHUB_OUTPUT"
+
+  submission-format:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR description identifier
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          pattern='^[A-Za-z0-9]{2}-[A-Za-z0-9]{5}[[:space:]]+T[A-Za-z0-9]{2}$'
+          matches=0
+          placeholder=0
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            trimmed="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+            if [[ "$trimmed" =~ $pattern ]]; then
+              if [[ "$trimmed" == "XX-XXXXX TXX" ]]; then
+                placeholder=1
+              else
+                matches=$((matches + 1))
+              fi
+            fi
+          done <<< "${PR_BODY}"
+          if [[ "$matches" -eq 1 ]]; then
+            echo "Submission format: PASS"
+          else
+            if [[ "$placeholder" -eq 1 && "$matches" -eq 0 ]]; then
+              echo "The placeholder XX-XXXXX TXX was not replaced."
+            fi
+            echo "Expected exactly one line matching: XX-XXXXX TXX"
+            echo "Submission format: FAIL"
+            exit 1
+          fi
+
+  # The only job that holds the Google key. It never checks out or runs student
+  # code; every value it writes arrives through env, never through ${{ }} in a script.
+  record-grade:
+    needs: [functional-grade, submission-format]
+    if: always() && github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Append this submission to the grades sheet
+        env:
+          GRADES_SA_KEY: ${{ secrets.GRADES_SA_KEY }}
+          SHEET_ID: ${{ vars.GRADES_SHEET_ID }}
+          SHEET_TAB: ${{ vars.GRADES_TAB }}
+          TASK_ID: ${{ vars.TASK_ID }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_USER: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GRADE: ${{ needs.functional-grade.outputs.grade }}
+          BREAKDOWN: ${{ needs.functional-grade.outputs.breakdown }}
+          FORMAT_RESULT: ${{ needs.submission-format.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          cat > record.mjs <<'EOF'
+          import { createSign } from 'node:crypto';
+          const env = process.env;
+          for (const name of ['GRADES_SA_KEY', 'SHEET_ID', 'SHEET_TAB', 'TASK_ID']) {
+            if (!env[name]) throw new Error(`${name} is not set (secret GRADES_SA_KEY; variables GRADES_SHEET_ID, GRADES_TAB, TASK_ID)`);
+          }
+          const key = JSON.parse(env.GRADES_SA_KEY);
+
+          // Must match server/tests/rubric.js. One column per check: 1 = pass, 0 = fail.
+          const CHECKS = ['model_fields', 'model_rules', 'unique_index', 'create', 'list', 'get_one', 'summary', 'summary_query'];
+          let breakdown = {};
+          try { breakdown = JSON.parse(env.BREAKDOWN || '{}'); } catch { breakdown = {}; }
+          const checkCells = CHECKS.map((k) => (breakdown[k] === 1 || breakdown[k] === 0 ? breakdown[k] : 'error'));
+
+          // The ID line, validated exactly as submission-format does; otherwise the raw text is kept.
+          const pattern = /^([A-Za-z0-9]{2}-[A-Za-z0-9]{5})\s+(T[A-Za-z0-9]{2})$/;
+          const lines = (env.PR_BODY || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          const hits = lines.map((l) => pattern.exec(l)).filter((m) => m && m[0] !== 'XX-XXXXX TXX');
+          const id = hits.length === 1 ? hits[0][1] : `INVALID: ${(lines.find((l) => /T[A-Za-z0-9]{1,3}\s*$/.test(l)) || lines[0] || '(empty)').slice(0, 60)}`;
+          const tutorial = hits.length === 1 ? hits[0][2] : '';
+          const total = /^\d{1,2}\/\d{1,2}$/.test(env.GRADE || '') ? env.GRADE : 'error';
+          const format = env.FORMAT_RESULT === 'success' ? 'PASS' : 'FAIL';
+
+          const header = ['task', 'id', 'tutorial', 'submission', 'format', 'total', ...CHECKS, 'github user', 'commit', 'time (UTC)', 'run'];
+          const row = [env.TASK_ID, id, tutorial, env.PR_URL, format, total, ...checkCells, env.PR_USER, env.HEAD_SHA.slice(0, 7), new Date().toISOString(), env.RUN_URL];
+
+          const b64 = (x) => Buffer.from(typeof x === 'string' ? x : JSON.stringify(x)).toString('base64url');
+          const now = Math.floor(Date.now() / 1000);
+          const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iss: key.client_email, scope: 'https://www.googleapis.com/auth/spreadsheets', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 600 })}`;
+          const jwt = `${unsigned}.${createSign('RSA-SHA256').update(unsigned).sign(key.private_key, 'base64url')}`;
+          const tok = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }) });
+          if (!tok.ok) throw new Error(`Google auth failed: ${tok.status} ${await tok.text()}`);
+          const { access_token } = await tok.json();
+
+          const base = `https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}/values/${encodeURIComponent(`'${env.SHEET_TAB}'!A1:Z1`)}`;
+          const call = async (url, init = {}) => {
+            for (let attempt = 1; ; attempt++) {
+              const res = await fetch(url, { ...init, headers: { authorization: `Bearer ${access_token}`, 'content-type': 'application/json' } });
+              if (res.ok) return res.json();
+              if ((res.status === 429 || res.status >= 500) && attempt < 8) { await new Promise((r) => setTimeout(r, Math.min(60000, 2000 * 2 ** attempt) + Math.random() * 1000)); continue; }
+              throw new Error(`Sheets API ${res.status}: ${await res.text()}`);
+            }
+          };
+          // Create the tab on first use, so a new task only needs its variables set.
+          const meta = await call(`https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}?fields=sheets.properties.title`);
+          if (!meta.sheets.some((s) => s.properties.title === env.SHEET_TAB)) {
+            await call(`https://sheets.googleapis.com/v4/spreadsheets/${env.SHEET_ID}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [{ addSheet: { properties: { title: env.SHEET_TAB } } }] }) }).catch((e) => { if (!/already exists/.test(e.message)) throw e; });
+          }
+          const first = await call(base);
+          // A tab that already holds a different header would get misaligned rows.
+          if (first.values?.length && first.values[0].join('|') !== header.join('|')) throw new Error(`Tab ${env.SHEET_TAB} has a different header in row 1; clear the tab or fix the header.`);
+          if (!first.values || !first.values.length) await call(`${base}?valueInputOption=RAW`, { method: 'PUT', body: JSON.stringify({ values: [header] }) });
+          // RAW: nothing a student types is ever evaluated as a formula.
+          await call(`${base}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: 'POST', body: JSON.stringify({ values: [row] }) });
+          console.log(`Recorded to ${env.SHEET_TAB}: task=${env.TASK_ID} id=${id} tutorial=${tutorial} total=${total} format=${format}`);
+          EOF
+          node record.mjs
+
