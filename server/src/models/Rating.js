@@ -1,14 +1,11 @@
 import mongoose from 'mongoose';
 
-// TODO: define the Rating schema per README.md section 1.
-
-const mongoose = require('mongoose');
-
 const ratingSchema = new mongoose.Schema(
   {
     bookCode: {
       type: String,
       required: true,
+      trim: true,
     },
     rating: {
       type: Number,
@@ -18,20 +15,21 @@ const ratingSchema = new mongoose.Schema(
     },
     note: {
       type: String,
+      trim: true,
+      default: '',
     },
     ratedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-// Compound unique index on bookCode and ratedBy
-
-
-// TODO: add the compound uniqueness constraint described in README.md section 1.
+// Compound index to ensure a user can only rate a book once
 ratingSchema.index({ bookCode: 1, ratedBy: 1 }, { unique: true });
 
-module.exports = mongoose.model('Rating', ratingSchema);
 export const Rating = mongoose.model('Rating', ratingSchema);
+export default Rating;
